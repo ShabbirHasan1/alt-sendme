@@ -1,6 +1,7 @@
 use crate::core::types::{ReceiveResult, ReceiveOptions, get_or_create_secret, AppHandle};
 use iroh::{
     discovery::dns::DnsDiscovery,
+    endpoint::TransportConfig,
     Endpoint,
 };
 use iroh_blobs::{
@@ -65,10 +66,22 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
     let secret_key = get_or_create_secret()?;
     tracing::info!("🔑 Generated/loaded secret key");
     
+    // Configure QUIC transport for high-speed transfers
+    let mut transport_config = TransportConfig::default();
+    transport_config
+        .max_concurrent_bidi_streams(256u32.into())
+        .max_concurrent_uni_streams(256u32.into())
+        .stream_receive_window(8_000_000u32.into())
+        .receive_window(16_000_000u32.into())
+        .send_window(16_000_000u32.into())
+        .datagram_send_buffer_size(16_777_216);
+    tracing::info!("🚀 Configured QUIC transport for high-speed transfers");
+    
     let mut builder = Endpoint::builder()
         .alpns(vec![])
         .secret_key(secret_key)
-        .relay_mode(options.relay_mode.clone().into());
+        .relay_mode(options.relay_mode.clone().into())
+        .transport_config(transport_config);
     
     tracing::info!("🔧 Relay mode: {:?}", options.relay_mode);
 
@@ -132,7 +145,7 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
             tracing::info!("   Hash: {}", hash_and_format.hash);
             tracing::info!("   Connection: {:?}", connection);
             
-            let sizes_result = get_hash_seq_and_sizes(&connection, &hash_and_format.hash, 1024 * 1024 * 32, None).await;
+            let sizes_result = get_hash_seq_and_sizes(&connection, &hash_and_format.hash, 1024 * 1024 * 128, None).await;
             
             let (_hash_seq, sizes) = match sizes_result {
                 Ok((hash_seq, sizes)) => {
@@ -164,8 +177,8 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
             while let Some(item) = stream.next().await {
                 match item {
                     GetProgressItem::Progress(offset) => {
-                        // Emit progress events every 1MB
-                        if offset - last_log_offset > 1_000_000 {
+                        // Emit progress events every 5MB to reduce overhead
+                        if offset - last_log_offset > 5_000_000 {
                             tracing::info!("📥 Downloaded: {} bytes", offset);
                             last_log_offset = offset;
                             
@@ -260,37 +273,66 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
 }
 
 async fn export(db: &Store, collection: Collection, output_dir: &Path) -> anyhow::Result<()> {
-    for (_i, (name, hash)) in collection.iter().enumerate() {
-        let target = get_export_path(output_dir, name)?;
-        if target.exists() {
-            anyhow::bail!("target {} already exists", target.display());
-        }
-        let mut stream = db
-            .export_with_opts(ExportOptions {
-                hash: *hash,
-                target,
-                mode: ExportMode::Copy,
-            })
-            .stream()
-            .await;
-        
-        while let Some(item) = stream.next().await {
-            match item {
-                ExportProgressItem::Size(_size) => {
-                    // Skip progress updates for library version
-                }
-                ExportProgressItem::CopyProgress(_offset) => {
-                    // Skip progress updates for library version
-                }
-                ExportProgressItem::Done => {
-                    // Export completed
-                }
-                ExportProgressItem::Error(cause) => {
-                    anyhow::bail!("error exporting {}: {}", name, cause);
-                }
+    use n0_future::BufferedStreamExt;
+    
+    // Use parallel export for better performance
+    let parallelism = num_cpus::get().max(4);
+    tracing::info!("🔄 Starting parallel export with {} workers", parallelism);
+    
+    // First, check all targets don't exist and collect items into owned data
+    let items: Vec<(String, iroh_blobs::Hash)> = collection.iter()
+        .map(|(name, hash)| {
+            let target = get_export_path(output_dir, name)?;
+            if target.exists() {
+                anyhow::bail!("target {} already exists", target.display());
             }
-        }
-    }
+            Ok((name.to_string(), *hash))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    
+    // Now export in parallel with owned data
+    n0_future::stream::iter(items)
+        .map(|(name, hash)| {
+            let db = db.clone();
+            let output_dir = output_dir.to_path_buf();
+            
+            async move {
+                let target = get_export_path(&output_dir, &name)?;
+                let mut stream = db
+                    .export_with_opts(ExportOptions {
+                        hash,
+                        target: target.clone(),
+                        mode: ExportMode::Copy,
+                    })
+                    .stream()
+                    .await;
+                
+                while let Some(item) = stream.next().await {
+                    match item {
+                        ExportProgressItem::Size(_size) => {
+                            // Skip progress updates for library version
+                        }
+                        ExportProgressItem::CopyProgress(_offset) => {
+                            // Skip progress updates for library version
+                        }
+                        ExportProgressItem::Done => {
+                            tracing::debug!("✅ Exported: {}", name);
+                        }
+                        ExportProgressItem::Error(cause) => {
+                            anyhow::bail!("error exporting {}: {}", name, cause);
+                        }
+                    }
+                }
+                anyhow::Ok(())
+            }
+        })
+        .buffered_unordered(parallelism)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    
+    tracing::info!("✅ Parallel export completed");
     Ok(())
 }
 

@@ -70,7 +70,7 @@ default = ["clipboard"]
 
 [profile.release]
 panic = "abort"
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 lto = true
 debug = "none"

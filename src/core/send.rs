@@ -3,6 +3,7 @@ use anyhow::Context;
 use data_encoding::HEXLOWER;
 use iroh::{
     discovery::pkarr::PkarrPublisher,
+    endpoint::TransportConfig,
     Endpoint, RelayMode,
 };
 use iroh_blobs::{
@@ -69,10 +70,22 @@ pub async fn start_share(path: PathBuf, options: SendOptions, app_handle: AppHan
     let relay_mode: RelayMode = options.relay_mode.clone().into();
     tracing::info!("🔧 Relay mode: {:?}", options.relay_mode);
     
+    // Configure QUIC transport for high-speed transfers
+    let mut transport_config = TransportConfig::default();
+    transport_config
+        .max_concurrent_bidi_streams(256u32.into())
+        .max_concurrent_uni_streams(256u32.into())
+        .stream_receive_window(8_000_000u32.into())
+        .receive_window(16_000_000u32.into())
+        .send_window(16_000_000u32.into())
+        .datagram_send_buffer_size(16_777_216);
+    tracing::info!("🚀 Configured QUIC transport for high-speed transfers");
+    
     let mut builder = Endpoint::builder()
         .alpns(vec![iroh_blobs::protocol::ALPN.to_vec()])
         .secret_key(secret_key)
-        .relay_mode(relay_mode.clone());
+        .relay_mode(relay_mode.clone())
+        .transport_config(transport_config);
     
     if options.ticket_type == AddrInfoOptions::Id {
         tracing::info!("🔍 Adding DNS discovery (ticket type: Id)");
