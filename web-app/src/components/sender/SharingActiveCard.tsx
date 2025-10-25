@@ -13,7 +13,7 @@ export function SharingActiveCard({
   isTransporting,
   isCompleted,
   onCopyTicket, 
-  onStopSharing 
+  onStopSharing: _onStopSharing 
 }: SharingControlsProps) {
   // Determine the current state and colors
   const getStatusColor = () => {

@@ -108,7 +108,7 @@ export function useDragDrop(onFileSelect: (path: string) => void): UseDragDropRe
       }
     }).then(unlisten => {
       dropUnlisten = unlisten
-    }).catch(err => {
+    }).catch(_err => {
       // console.error('Failed to register drag-drop listener:', err)
     })
 
@@ -117,7 +117,7 @@ export function useDragDrop(onFileSelect: (path: string) => void): UseDragDropRe
       setIsDragActive(true)
     }).then(unlisten => {
       hoverUnlisten = unlisten
-    }).catch(err => {
+    }).catch(_err => {
       // console.error('Failed to register drag-hover listener:', err)
     })
 
@@ -126,7 +126,7 @@ export function useDragDrop(onFileSelect: (path: string) => void): UseDragDropRe
       setIsDragActive(false)
     }).then(unlisten => {
       cancelUnlisten = unlisten
-    }).catch(err => {
+    }).catch(_err => {
       // console.error('Failed to register drag-leave listener:', err)
     })
 

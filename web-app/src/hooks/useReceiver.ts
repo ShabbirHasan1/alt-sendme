@@ -4,6 +4,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
 import { downloadDir } from '@tauri-apps/api/path'
 import type { AlertDialogState, AlertType, TransferMetadata, TransferProgress } from '../types/sender'
+import { trackDataTransfer } from '../lib/analytics'
 
 export interface ExportProgress {
   current: number
@@ -217,10 +218,13 @@ export function useReceiver(): UseReceiverReturn {
           downloadPath: savePath
         }
         setTransferMetadata(metadata)
+        
+        // Track data transfer to analytics
+        trackDataTransfer(metadata.fileSize)
       })
     }
 
-    setupListeners().catch((error) => {
+    setupListeners().catch((_error) => {
       // // console.error('Failed to set up event listeners:', error)
     })
 

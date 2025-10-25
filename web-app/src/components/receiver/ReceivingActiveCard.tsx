@@ -23,7 +23,7 @@ export function ReceivingActiveCard({
   transferProgress,
   exportProgress,
   resumedFrom,
-  onStopReceiving 
+  onStopReceiving: _onStopReceiving 
 }: ReceivingActiveCardProps) {
   // Determine the current state and colors
   const getStatusColor = () => {

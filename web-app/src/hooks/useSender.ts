@@ -162,7 +162,7 @@ export function useSender(): UseSenderReturn {
       })
     }
 
-    setupListeners().catch((error) => {
+    setupListeners().catch((_error) => {
       // // console.error('Failed to set up event listeners:', error)
     })
 

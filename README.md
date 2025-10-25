@@ -18,13 +18,12 @@ Built with [Tauri](https://tauri.app/) for a native desktop experience with a mo
 
 ## Installation
 
-Better Sendme is currently in development. Pre-built binaries will be available soon.
 
-For developers, you can build from source:
+Build from source:
 
 ```bash
 cd src-tauri
-cargo tauri build
+cargo tauri build --no-bundle
 ```
 
 ## Development
