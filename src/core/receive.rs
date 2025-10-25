@@ -21,9 +21,10 @@ use n0_future::StreamExt;
 use std::str::FromStr;
 
 fn emit_event(app_handle: &AppHandle, event_name: &str) {
+    tracing::info!("📡 Emitting event: {}", event_name);
     if let Some(handle) = app_handle {
-        if let Err(_e) = handle.emit_event(event_name) {
-            // tracing::warn!("Failed to emit event {}: {}", event_name, e);
+        if let Err(e) = handle.emit_event(event_name) {
+            tracing::warn!("⚠️  Failed to emit event {}: {}", event_name, e);
         }
     }
 }
@@ -36,16 +37,20 @@ fn emit_progress_event(app_handle: &AppHandle, bytes_transferred: u64, total_byt
         
         let payload = format!("{}:{}:{}", bytes_transferred, total_bytes, speed_int);
         
-        if let Err(_e) = handle.emit_event_with_payload(event_name, &payload) {
-            // tracing::warn!("Failed to emit progress event: {}", e);
+        tracing::debug!("📊 Emitting receive progress event: {} bytes / {} bytes @ {:.2} KB/s", 
+                        bytes_transferred, total_bytes, speed_bps / 1024.0);
+        
+        if let Err(e) = handle.emit_event_with_payload(event_name, &payload) {
+            tracing::warn!("⚠️  Failed to emit progress event: {}", e);
         }
     }
 }
 
 fn emit_event_with_payload(app_handle: &AppHandle, event_name: &str, payload: &str) {
+    tracing::info!("📡 Emitting event '{}' with payload: {}...", event_name, &payload[..50.min(payload.len())]);
     if let Some(handle) = app_handle {
-        if let Err(_e) = handle.emit_event_with_payload(event_name, payload) {
-            // tracing::warn!("Failed to emit event {} with payload: {}", event_name, e);
+        if let Err(e) = handle.emit_event_with_payload(event_name, payload) {
+            tracing::warn!("⚠️  Failed to emit event {} with payload: {}", event_name, e);
         }
     }
 }
@@ -94,52 +99,52 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
     let dir_name = format!(".sendme-recv-{}", ticket.hash().to_hex());
     let temp_base = std::env::temp_dir();
     let iroh_data_dir = temp_base.join(&dir_name);
-    // tracing::info!("💾 Storage directory: {}", iroh_data_dir.display());
+    tracing::info!("💾 Storage directory: {}", iroh_data_dir.display());
     let db = FsStore::load(&iroh_data_dir).await?;
     let db2 = db.clone();
     
-    // tracing::info!("✅ Database loaded");
+    tracing::info!("✅ Database loaded");
     let fut = async move {
-        // tracing::info!("🔄 Starting download process...");
+        tracing::info!("🔄 Starting download process...");
         let hash_and_format = ticket.hash_and_format();
-        // tracing::info!("📦 Checking local data for hash: {}", hash_and_format.hash);
+        tracing::info!("📦 Checking local data for hash: {}", hash_and_format.hash);
         let local = db.remote().local(hash_and_format).await?;
-        // tracing::info!("✅ Local check complete");
+        tracing::info!("✅ Local check complete");
         
         let (stats, total_files, payload_size) = if !local.is_complete() {
-            // tracing::info!("⬇️  Data not complete locally, starting download...");
-            // tracing::info!("🔌 Attempting to connect to sender...");
-            // tracing::info!("   Target: {}", addr.node_id);
-            // tracing::info!("   ALPN: {:?}", iroh_blobs::protocol::ALPN);
+            tracing::info!("⬇️  Data not complete locally, starting download...");
+            tracing::info!("🔌 Attempting to connect to sender...");
+            tracing::info!("   Target: {}", addr.node_id);
+            tracing::info!("   ALPN: {:?}", iroh_blobs::protocol::ALPN);
             
             emit_event(&app_handle, "receive-started");
             
             let connection = match endpoint.connect(addr.clone(), iroh_blobs::protocol::ALPN).await {
                 Ok(conn) => {
-                    // tracing::info!("✅ Connection established successfully!");
-                    // tracing::info!("   Connection established to node: {}", addr.node_id);
+                    tracing::info!("✅ Connection established successfully!");
+                    tracing::info!("   Connection established to node: {}", addr.node_id);
                     conn
                 }
                 Err(e) => {
-                    // tracing::error!("❌ Connection failed: {}", e);
-                    // tracing::error!("   Error details: {:?}", e);
-                    // tracing::error!("   Tried to connect to node: {}", addr.node_id);
-                    // tracing::error!("   With relay: {:?}", addr.relay_url);
-                    // tracing::error!("   With direct addrs: {:?}", addr.direct_addresses);
+                    tracing::error!("❌ Connection failed: {}", e);
+                    tracing::error!("   Error details: {:?}", e);
+                    tracing::error!("   Tried to connect to node: {}", addr.node_id);
+                    tracing::error!("   With relay: {:?}", addr.relay_url);
+                    tracing::error!("   With direct addrs: {:?}", addr.direct_addresses);
                     return Err(anyhow::anyhow!("Connection failed: {}", e));
                 }
             };
-            // tracing::info!("📊 Getting file sizes...");
-            // tracing::info!("   Hash: {}", hash_and_format.hash);
-            // tracing::info!("   Connection: {:?}", connection);
+            tracing::info!("📊 Getting file sizes...");
+            tracing::info!("   Hash: {}", hash_and_format.hash);
+            tracing::info!("   Connection: {:?}", connection);
             
             let sizes_result = get_hash_seq_and_sizes(&connection, &hash_and_format.hash, 1024 * 1024 * 32, None).await;
             
             let (_hash_seq, sizes) = match sizes_result {
                 Ok((hash_seq, sizes)) => {
-                    // tracing::info!("✅ Successfully got sizes: {} items", sizes.len());
-                    // tracing::info!("   Hash sequence: {:?}", hash_seq);
-                    // tracing::info!("   Sizes: {:?}", sizes);
+                    tracing::info!("✅ Successfully got sizes: {} items", sizes.len());
+                    tracing::info!("   Hash sequence: {:?}", hash_seq);
+                    tracing::info!("   Sizes: {:?}", sizes);
                     (hash_seq, sizes)
                 }
                 Err(e) => {

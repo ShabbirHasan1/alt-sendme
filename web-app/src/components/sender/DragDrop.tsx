@@ -11,6 +11,10 @@ interface DragDropProps {
 }
 
 export function DragDrop({ onFileSelect, selectedPath, isLoading }: DragDropProps) {
+  console.log('📁 DragDrop component rendered');
+  console.log('📁 Selected path:', selectedPath);
+  console.log('📁 Is loading:', isLoading);
+  
   const {
     isDragActive,
     pathType,
@@ -24,6 +28,7 @@ export function DragDrop({ onFileSelect, selectedPath, isLoading }: DragDropProp
   // Check path type when selectedPath changes
   useEffect(() => {
     if (selectedPath) {
+      console.log('🔍 Checking path type for:', selectedPath);
       checkPathType(selectedPath)
     }
   }, [selectedPath, checkPathType])

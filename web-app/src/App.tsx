@@ -5,6 +5,7 @@ import { Receiver } from './components/receiver/Receiver'
 import { TitleBar } from './components/TitleBar'
 
 function App() {
+  console.log('🚀 App component initialized');
   const [activeTab, setActiveTab] = useState<'send' | 'receive'>('send')
   const [isSharing, setIsSharing] = useState(false)
   const [isReceiving, setIsReceiving] = useState(false)
@@ -12,6 +13,7 @@ function App() {
 
 
   useEffect(() => {
+      console.log('📱 App component mounted');
       isInitialRender.current = true
   }, [])
 
@@ -53,7 +55,10 @@ function App() {
             />
             
             <motion.button
-              onClick={() => setActiveTab('send')}
+              onClick={() => {
+                console.log('📤 Switching to Send tab');
+                setActiveTab('send')
+              }}
               disabled={isReceiving}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium relative z-10 ${
                 activeTab === 'send'
@@ -63,14 +68,16 @@ function App() {
               style={{
                 color: 'var(--app-main-view-fg)',
               }}
-             
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2 }}
             >
               Send
             </motion.button>
             <motion.button
-              onClick={() => setActiveTab('receive')}
+              onClick={() => {
+                console.log('📥 Switching to Receive tab');
+                setActiveTab('receive')
+              }}
               disabled={isSharing}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium relative z-10 ${
                 activeTab === 'receive'
@@ -80,7 +87,6 @@ function App() {
               style={{
                 color: 'var(--app-main-view-fg)',
               }}
-             
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2 }}
             >

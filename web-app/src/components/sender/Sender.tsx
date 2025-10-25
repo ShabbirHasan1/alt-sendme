@@ -20,6 +20,8 @@ interface SenderProps {
 }
 
 export function Sender({ onTransferStateChange }: SenderProps) {
+  console.log('📤 Sender component rendered');
+  
   const {
     isSharing,
     isImporting,
@@ -43,6 +45,7 @@ export function Sender({ onTransferStateChange }: SenderProps) {
 
   // Notify parent component when transfer state changes
   useEffect(() => {
+    console.log('📤 Sender transfer state changed:', { isSharing, isImporting, isTransporting, isCompleted });
     onTransferStateChange(isSharing)
   }, [isSharing, onTransferStateChange])
 

@@ -17,12 +17,14 @@ pub struct ShareHandle {
 
 impl Drop for ShareHandle {
     fn drop(&mut self) {
-        // tracing::info!("🧹 Dropping share session for ticket: {}", &self.ticket[..50.min(self.ticket.len())]);
+        tracing::info!("🧹 Dropping share session for ticket: {}...", &self.ticket[..50.min(self.ticket.len())]);
     }
 }
 
 impl ShareHandle {
     pub fn new(ticket: String, path: PathBuf, send_result: SendResult) -> Self {
+        tracing::info!("🆕 Creating new ShareHandle for ticket: {}...", &ticket[..50.min(ticket.len())]);
+        tracing::info!("📁 Share path: {}", path.display());
         Self {
             ticket,
             _path: path,
@@ -33,37 +35,38 @@ impl ShareHandle {
     pub async fn stop(&mut self) -> Result<(), String> {
         use std::time::Duration;
         
-        // tracing::info!("🛑 Stopping share session for ticket: {}", &self.ticket[..50.min(self.ticket.len())]);
+        tracing::info!("🛑 Stopping share session for ticket: {}...", &self.ticket[..50.min(self.ticket.len())]);
         
-        // tracing::info!("🔄 Shutting down router...");
+        tracing::info!("🔄 Shutting down router...");
         match tokio::time::timeout(Duration::from_secs(2), self.send_result.router.shutdown()).await {
             Ok(Ok(())) => {
-                // tracing::info!("✅ Router shutdown completed successfully");
+                tracing::info!("✅ Router shutdown completed successfully");
             }
-            Ok(Err(_e)) => {
-                // tracing::warn!("⚠️  Router shutdown returned error: {}", e);
+            Ok(Err(e)) => {
+                tracing::warn!("⚠️  Router shutdown returned error: {}", e);
             }
             Err(_) => {
-                // tracing::warn!("⚠️  Router shutdown timed out after 2 seconds");
+                tracing::warn!("⚠️  Router shutdown timed out after 2 seconds");
             }
         }
         
         let blobs_dir = self.send_result.blobs_data_dir.clone();
         
         if blobs_dir.exists() {
+            tracing::info!("🧹 Cleaning up blobs directory: {}", blobs_dir.display());
             match tokio::fs::remove_dir_all(&blobs_dir).await {
                 Ok(_) => {
-                    // tracing::info!("✅ Successfully cleaned up blobs directory: {}", blobs_dir.display());
+                    tracing::info!("✅ Successfully cleaned up blobs directory: {}", blobs_dir.display());
                 }
-                Err(_e) => {
-                    // tracing::warn!("⚠️  Failed to clean up blobs directory {}: {}", blobs_dir.display(), e);
+                Err(e) => {
+                    tracing::warn!("⚠️  Failed to clean up blobs directory {}: {}", blobs_dir.display(), e);
                 }
             }
         } else {
-            // tracing::debug!("📁 Blobs directory already cleaned up: {}", blobs_dir.display());
+            tracing::debug!("📁 Blobs directory already cleaned up: {}", blobs_dir.display());
         }
         
-        // tracing::info!("✅ All resources will be dropped when method ends");
+        tracing::info!("✅ All resources will be dropped when method ends");
         
         Ok(())
     }

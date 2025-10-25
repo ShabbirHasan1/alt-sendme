@@ -9,26 +9,38 @@ use std::sync::Arc;
 use std::fs;
 
 fn cleanup_orphaned_directories() {
-    // tracing::info!("🧹 Checking for orphaned .sendme-send-* directories...");
+    tracing::info!("🧹 Checking for orphaned .sendme-send-* directories...");
     
     if let Ok(current_dir) = std::env::current_dir() {
+        tracing::debug!("📁 Current directory: {}", current_dir.display());
         if let Ok(entries) = fs::read_dir(&current_dir) {
+            let mut orphaned_count = 0;
             for entry in entries.flatten() {
                 if let Some(name) = entry.file_name().to_str() {
                     if name.starts_with(".sendme-send-") && entry.path().is_dir() {
-                        // tracing::info!("🗑️  Found orphaned directory: {}", name);
+                        tracing::info!("🗑️  Found orphaned directory: {}", name);
+                        orphaned_count += 1;
                         match fs::remove_dir_all(&entry.path()) {
                             Ok(_) => {
-                                // tracing::info!("✅ Successfully cleaned up orphaned directory: {}", name);
+                                tracing::info!("✅ Successfully cleaned up orphaned directory: {}", name);
                             }
-                            Err(_e) => {
-                                // tracing::warn!("⚠️  Failed to clean up orphaned directory {}: {}", name, e);
+                            Err(e) => {
+                                tracing::warn!("⚠️  Failed to clean up orphaned directory {}: {}", name, e);
                             }
                         }
                     }
                 }
             }
+            if orphaned_count == 0 {
+                tracing::debug!("✨ No orphaned directories found");
+            } else {
+                tracing::info!("🧹 Cleaned up {} orphaned directories", orphaned_count);
+            }
+        } else {
+            tracing::warn!("⚠️  Failed to read current directory");
         }
+    } else {
+        tracing::warn!("⚠️  Failed to get current directory");
     }
 }
 
@@ -43,7 +55,8 @@ fn main() {
         .with_line_number(true)
         .init();
     
-    // tracing::info!("🚀 Starting Sendme Desktop application");
+    tracing::info!("🚀 Starting Sendme Desktop application");
+    tracing::info!("📋 Logging initialized with level: {}", std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()));
     
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -77,3 +90,4 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

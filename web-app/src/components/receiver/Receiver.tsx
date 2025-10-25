@@ -20,6 +20,7 @@ interface ReceiverProps {
 }
 
 export function Receiver({ onTransferStateChange }: ReceiverProps) {
+  console.log('📥 Receiver component rendered');
   const [showInstructionsDialog, setShowInstructionsDialog] = useState(false)
   
   const {
@@ -44,6 +45,7 @@ export function Receiver({ onTransferStateChange }: ReceiverProps) {
 
   // Notify parent component when transfer state changes
   useEffect(() => {
+    console.log('📥 Receiver transfer state changed:', { isReceiving, isTransporting, isExporting, isCompleted });
     onTransferStateChange(isReceiving)
   }, [isReceiving, onTransferStateChange])
 

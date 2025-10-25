@@ -31,17 +31,19 @@ use walkdir::WalkDir;
 use n0_future::StreamExt;
 
 fn emit_event(app_handle: &AppHandle, event_name: &str) {
+    tracing::info!("📡 Emitting event: {}", event_name);
     if let Some(handle) = app_handle {
-        if let Err(_e) = handle.emit_event(event_name) {
-            // tracing::warn!("Failed to emit event {}: {}", event_name, e);
+        if let Err(e) = handle.emit_event(event_name) {
+            tracing::warn!("⚠️  Failed to emit event {}: {}", event_name, e);
         }
     }
 }
 
 fn emit_event_with_payload(app_handle: &AppHandle, event_name: &str, payload: &str) {
+    tracing::info!("📡 Emitting event '{}' with payload: {}...", event_name, &payload[..50.min(payload.len())]);
     if let Some(handle) = app_handle {
-        if let Err(_e) = handle.emit_event_with_payload(event_name, payload) {
-            // tracing::warn!("Failed to emit event {} with payload: {}", event_name, e);
+        if let Err(e) = handle.emit_event_with_payload(event_name, payload) {
+            tracing::warn!("⚠️  Failed to emit event {} with payload: {}", event_name, e);
         }
     }
 }
@@ -54,8 +56,11 @@ fn emit_progress_event(app_handle: &AppHandle, bytes_transferred: u64, total_byt
         
         let payload = format!("{}:{}:{}", bytes_transferred, total_bytes, speed_int);
         
-        if let Err(_e) = handle.emit_event_with_payload(event_name, &payload) {
-            // tracing::warn!("Failed to emit progress event: {}", e);
+        tracing::debug!("📊 Emitting progress event: {} bytes / {} bytes @ {:.2} KB/s", 
+                        bytes_transferred, total_bytes, speed_bps / 1024.0);
+        
+        if let Err(e) = handle.emit_event_with_payload(event_name, &payload) {
+            tracing::warn!("⚠️  Failed to emit progress event: {}", e);
         }
     }
 }
@@ -387,11 +392,11 @@ async fn show_provide_progress_with_logging(
 
                 match item {
                     iroh_blobs::provider::events::ProviderMessage::ClientConnectedNotify(msg) => {
-                        let _node_id = msg.node_id.map(|id| id.fmt_short().to_string()).unwrap_or_else(|| "?".to_string());
-                        // tracing::info!("🔗 Client connected: {} (connection_id: {})", node_id, msg.connection_id);
+                        let node_id = msg.node_id.map(|id| id.fmt_short().to_string()).unwrap_or_else(|| "?".to_string());
+                        tracing::info!("🔗 Client connected: {} (connection_id: {})", node_id, msg.connection_id);
                     }
-                    iroh_blobs::provider::events::ProviderMessage::ConnectionClosed(_msg) => {
-                        // tracing::info!("❌ Connection closed: connection_id {}", msg.connection_id);
+                    iroh_blobs::provider::events::ProviderMessage::ConnectionClosed(msg) => {
+                        tracing::info!("❌ Connection closed: connection_id {}", msg.connection_id);
                         // When connection closes, transfer is complete
                         let started = transfer_started_emitted.lock().await;
                         if *started {
@@ -417,9 +422,9 @@ async fn show_provide_progress_with_logging(
                             
                             while let Ok(Some(update)) = rx.recv().await {
                                 match update {
-                                    iroh_blobs::provider::events::RequestUpdate::Started(_m) => {
-                                        // tracing::info!("▶️  Request started: conn {} req {} idx {} hash {} size {}", 
-                                        //     connection_id, request_id, m.index, m.hash.fmt_short(), m.size);
+                                    iroh_blobs::provider::events::RequestUpdate::Started(m) => {
+                                        tracing::info!("▶️  Request started: conn {} req {} idx {} hash {} size {}", 
+                                            connection_id, request_id, m.index, m.hash.fmt_short(), m.size);
                                         if !transfer_started {
                                             // Initialize global state on first transfer start
                                             let mut state = global_state_task.lock().await;

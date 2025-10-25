@@ -63,13 +63,14 @@ export function useSender(): UseSenderReturn {
 
     const setupListeners = async () => {
       unlistenImportStart = await listen('import-started', () => {
+        console.log('📥 Import started');
         setIsImporting(true)
         setImportProgress(null)
       })
 
       unlistenImportCount = await listen('import-file-count', (event: any) => {
         const total = parseInt(event.payload as string, 10)
-        // // console.log('[Import] File count:', total)
+        console.log('📊 Import file count:', total)
         setImportProgress({ processed: 0, total, percentage: 0 })
       })
 
@@ -82,19 +83,21 @@ export function useSender(): UseSenderReturn {
             const processed = parseInt(parts[0], 10)
             const total = parseInt(parts[1], 10)
             const percentage = parseInt(parts[2], 10)
+            console.log(`📈 Import progress: ${processed}/${total} (${percentage}%)`)
             setImportProgress({ processed, total, percentage })
           }
         } catch (error) {
-          // // console.error('Failed to parse import progress event:', error)
+          console.error('❌ Failed to parse import progress event:', error)
         }
       })
 
       unlistenImportComplete = await listen('import-completed', () => {
-        // // console.log('[Import] Completed')
+        console.log('✅ Import completed')
         setIsImporting(false)
       })
 
       unlistenStart = await listen('transfer-started', () => {
+        console.log('🚀 Transfer started')
         setIsTransporting(true)
         setIsCompleted(false)
         setTransferStartTime(Date.now())
@@ -114,6 +117,8 @@ export function useSender(): UseSenderReturn {
             const speedBps = speedInt / 1000.0
             const percentage = totalBytes > 0 ? (bytesTransferred / totalBytes) * 100 : 0
             
+            console.log(`📊 Transfer progress: ${(bytesTransferred / 1024 / 1024).toFixed(2)}MB/${(totalBytes / 1024 / 1024).toFixed(2)}MB (${percentage.toFixed(1)}%) @ ${(speedBps / 1024).toFixed(1)}KB/s`)
+            
             setTransferProgress({
               bytesTransferred,
               totalBytes,
@@ -122,22 +127,26 @@ export function useSender(): UseSenderReturn {
             })
           }
         } catch (error) {
-          // // console.error('Failed to parse progress event:', error)
+          console.error('❌ Failed to parse progress event:', error)
         }
       })
 
       unlistenComplete = await listen('transfer-completed', async () => {
+        console.log('✅ Transfer completed')
         setIsTransporting(false)
         setIsCompleted(true)
         setTransferProgress(null)
         
         const endTime = Date.now()
         const duration = transferStartTime ? endTime - transferStartTime : 0
+        console.log(`⏱️  Transfer duration: ${(duration / 1000).toFixed(1)}s`)
         
         if (selectedPath) {
           try {
+            console.log('📏 Getting file size for metadata...')
             const fileSize = await invoke<number>('get_file_size', { path: selectedPath })
             const fileName = selectedPath.split('/').pop() || 'Unknown'
+            console.log(`📄 File: ${fileName}, Size: ${(fileSize / 1024 / 1024).toFixed(2)}MB`)
             const metadata = { 
               fileName, 
               fileSize, 
@@ -147,7 +156,7 @@ export function useSender(): UseSenderReturn {
             }
             setTransferMetadata(metadata)
           } catch (error) {
-            // // console.error('Failed to get file size:', error)
+            console.error('❌ Failed to get file size:', error)
             const fileName = selectedPath.split('/').pop() || 'Unknown'
             const metadata = { 
               fileName, 
@@ -162,8 +171,8 @@ export function useSender(): UseSenderReturn {
       })
     }
 
-    setupListeners().catch((_error) => {
-      // // console.error('Failed to set up event listeners:', error)
+    setupListeners().catch((error) => {
+      console.error('❌ Failed to set up event listeners:', error)
     })
 
     return () => {
@@ -186,19 +195,27 @@ export function useSender(): UseSenderReturn {
   }
 
   const handleFileSelect = (path: string) => {
+    console.log('📁 File selected:', path);
     setSelectedPath(path)
   }
 
   const startSharing = async () => {
-    if (!selectedPath) return
+    if (!selectedPath) {
+      console.warn('⚠️  No file selected for sharing');
+      return
+    }
+    
+    console.log('🚀 Starting file sharing for:', selectedPath);
     
     try {
       setIsLoading(true)
+      console.log('📡 Invoking start_sharing command...');
       const result = await invoke<string>('start_sharing', { path: selectedPath })
+      console.log('✅ Share started successfully, ticket received');
       setTicket(result)
       setIsSharing(true)
     } catch (error) {
-      // // console.error('Failed to start sharing:', error)
+      console.error('❌ Failed to start sharing:', error)
       showAlert('Sharing Failed', `Failed to start sharing: ${error}`, 'error')
     } finally {
       setIsLoading(false)
@@ -206,8 +223,12 @@ export function useSender(): UseSenderReturn {
   }
 
   const stopSharing = async () => {
+    console.log('🛑 Stopping file sharing...');
+    
     try {
+      console.log('📡 Invoking stop_sharing command...');
       await invoke('stop_sharing')
+      console.log('✅ Share stopped successfully');
       setIsSharing(false)
       setIsImporting(false)
       setIsTransporting(false)
@@ -219,7 +240,7 @@ export function useSender(): UseSenderReturn {
       setImportProgress(null)
       setTransferStartTime(null)
     } catch (error) {
-      // // console.error('Failed to stop sharing:', error)
+      console.error('❌ Failed to stop sharing:', error)
       showAlert('Stop Sharing Failed', `Failed to stop sharing: ${error}`, 'error')
     }
   }
@@ -230,14 +251,18 @@ export function useSender(): UseSenderReturn {
 
   const copyTicket = async () => {
     if (ticket) {
+      console.log('📋 Copying ticket to clipboard...');
       try {
         await navigator.clipboard.writeText(ticket)
+        console.log('✅ Ticket copied successfully');
         setCopySuccess(true)
         setTimeout(() => setCopySuccess(false), 2000)
       } catch (error) {
-        // // console.error('Failed to copy ticket:', error)
+        console.error('❌ Failed to copy ticket:', error)
         showAlert('Copy Failed', `Failed to copy ticket: ${error}`, 'error')
       }
+    } else {
+      console.warn('⚠️  No ticket available to copy');
     }
   }
 
