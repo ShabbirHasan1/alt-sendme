@@ -84,22 +84,58 @@ export function ReceivingActiveCard({
         
       {/* Show export progress when saving files */}
       {isExporting && exportProgress && (
-        <div className="space-y-2 p-3 rounded-md" style={{ backgroundColor: 'rgba(255, 193, 7, 0.1)', border: '1px solid rgba(255, 193, 7, 0.3)' }}>
-          <p className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>
-            Saving files: {exportProgress.current} / {exportProgress.total}
-          </p>
-          <div className="w-full bg-gray-700 rounded-full h-2">
-            <div
-              className="h-2 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${exportProgress.percentage}%`,
-                backgroundColor: 'rgba(255, 193, 7, 0.8)'
-              }}
-            />
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              <span>Export Progress</span>
+              <span>{exportProgress.percentage.toFixed(1)}%</span>
+            </div>
+            
+            {/* Progress bars container */}
+            <div className="flex gap-1 items-end h-8">
+              {Array.from({ length: 30 }).map((_, index) => {
+                const filledBars = Math.floor((exportProgress.percentage / 100) * 30)
+                const isFilled = index < filledBars
+                const isPartiallyFilled = index === filledBars && exportProgress.percentage % (100 / 30) > 0
+                
+                // Calculate partial fill height for smoother animation
+                let fillPercentage = 100
+                if (isPartiallyFilled) {
+                  const barProgress = (exportProgress.percentage % (100 / 30)) / (100 / 30)
+                  fillPercentage = barProgress * 100
+                } else if (!isFilled) {
+                  fillPercentage = 0
+                }
+
+                return (
+                  <div
+                    key={index}
+                    className="relative flex-1 rounded-sm transition-all duration-300 ease-in-out"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      minWidth: '3px',
+                      height: '100%',
+                    }}
+                  >
+                    {/* Filled portion */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0 rounded-sm transition-all duration-300 ease-in-out"
+                      style={{
+                        backgroundColor: 'rgba(37, 211, 101, 0.687)',
+                        height: `${fillPercentage}%`,
+                      }}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* File count display */}
+            <div className="flex items-center justify-between text-xs" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+              <span>Copying files to destination folder...</span>
+              <span>{exportProgress.current} / {exportProgress.total} files</span>
+            </div>
           </div>
-          <p className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-            Copying files to destination folder...
-          </p>
         </div>
       )}
         
