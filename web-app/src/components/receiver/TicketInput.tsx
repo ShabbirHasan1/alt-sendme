@@ -68,7 +68,7 @@ export function TicketInput({
             disabled={!ticket.trim() || isReceiving}
             className="w-[15%] py-3 px-4 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-80 flex items-center justify-center"
             style={{
-              backgroundColor: 'var(--app-accent)',
+              backgroundColor: (!ticket.trim() || isReceiving) ? 'var(--app-accent)' : 'var(--app-primary)',
               color: 'var(--app-accent-fg)',
             }}
           >

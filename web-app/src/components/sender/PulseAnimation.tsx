@@ -60,7 +60,7 @@ export function PulseAnimation({ isTransporting, isCompleted = false, className 
         animationData={animationData}
         loop={true}
         autoplay={true}
-        style={{ width: 256, height: 256 }}
+        style={{ width: 200, height: 200 }}
       />
     </div>
   )

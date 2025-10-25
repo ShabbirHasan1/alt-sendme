@@ -109,7 +109,7 @@ function App() {
           </div>
         </div>
       </div>
-      <div className=" w-full h-10 z-10 text-center text-xs"><span>v0.1.0</span></div>
+      <div className="absolute bottom-0  w-full h-10 -z-10 text-center text-xs"><span>v0.1.0</span></div>
     </div>
   )
 }

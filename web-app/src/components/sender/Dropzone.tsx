@@ -1,13 +1,11 @@
-import { Upload, CheckCircle, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
+import { Upload, CheckCircle, Loader2 } from 'lucide-react'
 import type { DropzoneProps } from '../../types/sender'
 
 export function Dropzone({ 
   isDragActive, 
   selectedPath, 
   pathType, 
-  showFullPath, 
-  isLoading, 
-  onToggleFullPath 
+  isLoading
 }: DropzoneProps) {
   const getDropzoneStyles = () => {
     const baseStyles = {
@@ -34,7 +32,6 @@ export function Dropzone({
     if (selectedPath && !isLoading) {
       return {
         ...baseStyles,
-        padding: '2rem 2rem 1rem 2rem',
       }
     }
 
@@ -56,29 +53,21 @@ export function Dropzone({
     if (isLoading) return 'Please wait while we process your files for sharing...'
     if (selectedPath) {
       return (
-        <div>
-          <div 
-            className="font-medium cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center"
-            onClick={onToggleFullPath}
-            title="Click to toggle full path"
-          >
-            {selectedPath.split('/').pop()}
-            <span className="-mr-2">
-              {showFullPath ? (
-                <ChevronDown className="p-0.5 h-6 w-6" size={16} />
-              ) : (
-                <ChevronRight className="p-0.5 h-6 w-6" size={16} />
-              )}
-            </span>
-          </div>
-          <div 
-            className="text-xs mt-1 opacity-75 break-all transition-opacity"
-            style={{ 
-              visibility: showFullPath ? 'visible' : 'hidden',
-            }}
-          >
+        <div 
+          className="text-xs opacity-75 max-w-64 text-center mx-auto"
+          style={{ 
+            maxWidth: '16rem',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+            direction: 'rtl',
+            textAlign: 'left'
+          }}
+          title={selectedPath}
+        >
+          <span style={{ direction: 'ltr', unicodeBidi: 'bidi-override' }}>
             {selectedPath}
-          </div>
+          </span>
         </div>
       )
     }

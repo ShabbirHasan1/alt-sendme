@@ -107,7 +107,6 @@ export interface InstructionsCardProps {
 export interface DragDropState {
   isDragActive: boolean
   pathType: 'file' | 'directory' | null
-  showFullPath: boolean
   alertDialog: AlertDialogState
 }
 
@@ -115,9 +114,7 @@ export interface DropzoneProps {
   isDragActive: boolean
   selectedPath: string | null
   pathType: 'file' | 'directory' | null
-  showFullPath: boolean
   isLoading: boolean
-  onToggleFullPath: () => void
 }
 
 export interface BrowseButtonsProps {

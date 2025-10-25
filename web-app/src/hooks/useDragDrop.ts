@@ -8,11 +8,9 @@ export interface UseDragDropReturn {
   // State
   isDragActive: boolean
   pathType: 'file' | 'directory' | null
-  showFullPath: boolean
   alertDialog: AlertDialogState
   
   // Actions
-  toggleFullPath: () => void
   browseFile: () => Promise<void>
   browseFolder: () => Promise<void>
   showAlert: (title: string, description: string, type?: AlertType) => void
@@ -23,7 +21,6 @@ export interface UseDragDropReturn {
 export function useDragDrop(onFileSelect: (path: string) => void): UseDragDropReturn {
   const [isDragActive, setIsDragActive] = useState(false)
   const [pathType, setPathType] = useState<'file' | 'directory' | null>(null)
-  const [showFullPath, setShowFullPath] = useState(false)
   const [alertDialog, setAlertDialog] = useState<AlertDialogState>({
     isOpen: false,
     title: '',
@@ -47,10 +44,6 @@ export function useDragDrop(onFileSelect: (path: string) => void): UseDragDropRe
 
   const closeAlert = () => {
     setAlertDialog(prev => ({ ...prev, isOpen: false }))
-  }
-
-  const toggleFullPath = () => {
-    setShowFullPath(prev => !prev)
   }
 
   const browseFile = async () => {
@@ -84,11 +77,6 @@ export function useDragDrop(onFileSelect: (path: string) => void): UseDragDropRe
       showAlert('Folder Dialog Failed', `Failed to open folder dialog: ${error}`, 'error')
     }
   }
-
-  // Reset showFullPath when path changes
-  useEffect(() => {
-    setShowFullPath(false)
-  }, [onFileSelect])
 
   // Listen for Tauri's file drop events
   useEffect(() => {
@@ -141,11 +129,9 @@ export function useDragDrop(onFileSelect: (path: string) => void): UseDragDropRe
     // State
     isDragActive,
     pathType,
-    showFullPath,
     alertDialog,
     
     // Actions
-    toggleFullPath,
     browseFile,
     browseFolder,
     showAlert,

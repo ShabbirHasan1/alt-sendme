@@ -14,9 +14,7 @@ export function DragDrop({ onFileSelect, selectedPath, isLoading }: DragDropProp
   const {
     isDragActive,
     pathType,
-    showFullPath,
     alertDialog,
-    toggleFullPath,
     browseFile,
     browseFolder,
     closeAlert,
@@ -36,9 +34,7 @@ export function DragDrop({ onFileSelect, selectedPath, isLoading }: DragDropProp
         isDragActive={isDragActive}
         selectedPath={selectedPath || null}
         pathType={pathType}
-        showFullPath={showFullPath}
         isLoading={isLoading || false}
-        onToggleFullPath={toggleFullPath}
       />
 
       {!selectedPath && (
