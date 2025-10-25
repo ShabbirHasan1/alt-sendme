@@ -74,7 +74,6 @@ impl From<RelayModeOption> for iroh::RelayMode {
     Default,
     Debug,
     derive_more::Display,
-    derive_more::FromStr,
     serde::Serialize,
     serde::Deserialize,
 )]

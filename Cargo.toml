@@ -1,7 +1,7 @@
 [package]
-name = "alt-sendme"
+name = "sendme"
 version = "0.1.0"
-edition = "2025"
+edition = "2024"
 authors = ["Tony Antony <tnyantny@protonmail.com>"]
 keywords = ["file-sharing", "network", "p2p", "holepunching", "tauri", "react"]
 categories = ["network-programming"]
@@ -9,7 +9,7 @@ license = "AGPL-3.0"
 repository = "https://github.com/tonyantony300/alt-sendme"
 description = "A Tauri desktop application for sending files and directories over the network with NAT hole punching"
 readme = "README.md"
-rust-version = "1.81"
+rust-version = "1.85"
 
 [lib]
 name = "sendme"
@@ -29,6 +29,9 @@ data-encoding = "2.6.0"
 n0-future = "0.1.2"
 dirs = "6.0.0"
 irpc = "0.9.0"
+rand = "0.9"
+derive_more = "0.99"
+num_cpus = "1.0"
 
 [profile.release]
 panic = "abort"

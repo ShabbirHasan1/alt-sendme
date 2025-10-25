@@ -47,7 +47,7 @@ pub async fn get_file_size(path: String) -> Result<u64, String> {
                         }
                     }
                 }
-                Err(e) => {
+                Err(_e) => {
                     // tracing::warn!("Error walking directory: {}", e);
                 }
             }

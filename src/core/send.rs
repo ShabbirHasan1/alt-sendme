@@ -19,7 +19,7 @@ use iroh_blobs::{
     BlobFormat, BlobsProtocol,
 };
 use n0_future::{task::AbortOnDropHandle, BufferedStreamExt};
-use rand::Rng;
+use rand::RngCore;
 use std::{
     path::{Component, Path, PathBuf},
     sync::Arc,
@@ -32,7 +32,7 @@ use n0_future::StreamExt;
 
 fn emit_event(app_handle: &AppHandle, event_name: &str) {
     if let Some(handle) = app_handle {
-        if let Err(e) = handle.emit_event(event_name) {
+        if let Err(_e) = handle.emit_event(event_name) {
             // tracing::warn!("Failed to emit event {}: {}", event_name, e);
         }
     }
@@ -40,7 +40,7 @@ fn emit_event(app_handle: &AppHandle, event_name: &str) {
 
 fn emit_event_with_payload(app_handle: &AppHandle, event_name: &str, payload: &str) {
     if let Some(handle) = app_handle {
-        if let Err(e) = handle.emit_event_with_payload(event_name, payload) {
+        if let Err(_e) = handle.emit_event_with_payload(event_name, payload) {
             // tracing::warn!("Failed to emit event {} with payload: {}", event_name, e);
         }
     }
@@ -54,7 +54,7 @@ fn emit_progress_event(app_handle: &AppHandle, bytes_transferred: u64, total_byt
         
         let payload = format!("{}:{}:{}", bytes_transferred, total_bytes, speed_int);
         
-        if let Err(e) = handle.emit_event_with_payload(event_name, &payload) {
+        if let Err(_e) = handle.emit_event_with_payload(event_name, &payload) {
             // tracing::warn!("Failed to emit progress event: {}", e);
         }
     }
@@ -64,7 +64,7 @@ pub async fn start_share(path: PathBuf, options: SendOptions, app_handle: AppHan
     // tracing::info!("🚀 Starting share for path: {}", path.display());
     
     let secret_key = get_or_create_secret()?;
-    let node_id = secret_key.public();
+    let _node_id = secret_key.public();
     // tracing::info!("🔑 Node ID: {}", node_id);
     
     let relay_mode: RelayMode = options.relay_mode.clone().into();
@@ -88,7 +88,8 @@ pub async fn start_share(path: PathBuf, options: SendOptions, app_handle: AppHan
         builder = builder.bind_addr_v6(addr);
     }
 
-    let suffix = rand::rng().random::<[u8; 16]>();
+    let mut suffix = [0u8; 16];
+    rand::rng().fill_bytes(&mut suffix);
     let temp_base = std::env::temp_dir();
     let blobs_data_dir = temp_base.join(format!(".sendme-send-{}", HEXLOWER.encode(&suffix)));
     // tracing::info!("💾 Blob storage directory: {}", blobs_data_dir.display());
@@ -267,13 +268,13 @@ async fn import(
                             item_size = size;
                             // tracing::debug!("   Size: {} bytes", size);
                         }
-                        iroh_blobs::api::blobs::AddProgressItem::CopyProgress(offset) => {
+                        iroh_blobs::api::blobs::AddProgressItem::CopyProgress(_offset) => {
                             // tracing::debug!("   Copy progress: {} bytes", offset);
                         }
                         iroh_blobs::api::blobs::AddProgressItem::CopyDone => {
                             // tracing::debug!("   Copy done, computing outboard...");
                         }
-                        iroh_blobs::api::blobs::AddProgressItem::OutboardProgress(offset) => {
+                        iroh_blobs::api::blobs::AddProgressItem::OutboardProgress(_offset) => {
                             // tracing::debug!("   Outboard progress: {} bytes", offset);
                         }
                         iroh_blobs::api::blobs::AddProgressItem::Error(cause) => {
@@ -382,17 +383,17 @@ async fn show_provide_progress_with_logging(
 
                 match item {
                     iroh_blobs::provider::events::ProviderMessage::ClientConnectedNotify(msg) => {
-                        let node_id = msg.node_id.map(|id| id.fmt_short().to_string()).unwrap_or_else(|| "?".to_string());
+                        let _node_id = msg.node_id.map(|id| id.fmt_short().to_string()).unwrap_or_else(|| "?".to_string());
                         // tracing::info!("🔗 Client connected: {} (connection_id: {})", node_id, msg.connection_id);
                     }
-                    iroh_blobs::provider::events::ProviderMessage::ConnectionClosed(msg) => {
+                    iroh_blobs::provider::events::ProviderMessage::ConnectionClosed(_msg) => {
                         // tracing::info!("❌ Connection closed: connection_id {}", msg.connection_id);
                     }
                     iroh_blobs::provider::events::ProviderMessage::GetRequestReceivedNotify(msg) => {
                         let connection_id = msg.connection_id;
                         let request_id = msg.request_id;
                         // tracing::info!("📥 Get request received: connection_id {}, request_id {}", 
-                            connection_id, request_id);
+                        //     connection_id, request_id);
                         
                         let app_handle_task = app_handle.clone();
                         let transfer_states_task = transfer_states.clone();
@@ -405,9 +406,9 @@ async fn show_provide_progress_with_logging(
                             
                             while let Ok(Some(update)) = rx.recv().await {
                                 match update {
-                                    iroh_blobs::provider::events::RequestUpdate::Started(m) => {
+                                    iroh_blobs::provider::events::RequestUpdate::Started(_m) => {
                                         // tracing::info!("▶️  Request started: conn {} req {} idx {} hash {} size {}", 
-                                            connection_id, request_id, m.index, m.hash.fmt_short(), m.size);
+                                        //     connection_id, request_id, m.index, m.hash.fmt_short(), m.size);
                                         if !transfer_started {
                                             transfer_states_task.lock().await.insert(
                                                 (connection_id, request_id),
@@ -422,7 +423,7 @@ async fn show_provide_progress_with_logging(
                                     }
                                     iroh_blobs::provider::events::RequestUpdate::Progress(m) => {
                                         // tracing::info!("📊 Progress: conn {} req {} offset {}", 
-                                            connection_id, request_id, m.end_offset);
+                                        //     connection_id, request_id, m.end_offset);
                                         if !transfer_started {
                                             emit_event(&app_handle_task, "transfer-started");
                                             transfer_started = true;
@@ -446,7 +447,7 @@ async fn show_provide_progress_with_logging(
                                     }
                                     iroh_blobs::provider::events::RequestUpdate::Completed(_m) => {
                                         // tracing::info!("✅ Request completed: conn {} req {}", 
-                                            connection_id, request_id);
+                                        //     connection_id, request_id);
                                         if transfer_started {
                                             transfer_states_task.lock().await.remove(&(connection_id, request_id));
                                             emit_event(&app_handle_task, "transfer-completed");
@@ -454,7 +455,7 @@ async fn show_provide_progress_with_logging(
                                     }
                                     iroh_blobs::provider::events::RequestUpdate::Aborted(_m) => {
                                         // tracing::warn!("⚠️  Request aborted: conn {} req {}", 
-                                            connection_id, request_id);
+                                        //     connection_id, request_id);
                                         if transfer_started {
                                             transfer_states_task.lock().await.remove(&(connection_id, request_id));
                                             emit_event(&app_handle_task, "transfer-completed");
@@ -464,7 +465,7 @@ async fn show_provide_progress_with_logging(
                             }
                             
                             // tracing::info!("🏁 Request monitoring finished: connection_id {}, request_id {}", 
-                                connection_id, request_id);
+                            //     connection_id, request_id);
                         });
                     }
                     _ => {

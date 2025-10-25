@@ -22,7 +22,7 @@ use std::str::FromStr;
 
 fn emit_event(app_handle: &AppHandle, event_name: &str) {
     if let Some(handle) = app_handle {
-        if let Err(e) = handle.emit_event(event_name) {
+        if let Err(_e) = handle.emit_event(event_name) {
             // tracing::warn!("Failed to emit event {}: {}", event_name, e);
         }
     }
@@ -36,7 +36,7 @@ fn emit_progress_event(app_handle: &AppHandle, bytes_transferred: u64, total_byt
         
         let payload = format!("{}:{}:{}", bytes_transferred, total_bytes, speed_int);
         
-        if let Err(e) = handle.emit_event_with_payload(event_name, &payload) {
+        if let Err(_e) = handle.emit_event_with_payload(event_name, &payload) {
             // tracing::warn!("Failed to emit progress event: {}", e);
         }
     }
@@ -44,7 +44,7 @@ fn emit_progress_event(app_handle: &AppHandle, bytes_transferred: u64, total_byt
 
 fn emit_event_with_payload(app_handle: &AppHandle, event_name: &str, payload: &str) {
     if let Some(handle) = app_handle {
-        if let Err(e) = handle.emit_event_with_payload(event_name, payload) {
+        if let Err(_e) = handle.emit_event_with_payload(event_name, payload) {
             // tracing::warn!("Failed to emit event {} with payload: {}", event_name, e);
         }
     }
@@ -157,9 +157,9 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
             let local_size = local.local_bytes();
             if local_size > 0 {
                 // tracing::info!("🔄 Resuming download from {} bytes ({}% complete)", 
-                    local_size, 
-                    (local_size as f64 / payload_size as f64 * 100.0) as u64
-                );
+                //     local_size, 
+                //     (local_size as f64 / payload_size as f64 * 100.0) as u64
+                // );
                 emit_event_with_payload(&app_handle, "receive-resumed", &format!("{}", local_size));
             }
             
@@ -270,7 +270,7 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
     };
     
     // tracing::info!("🧹 Cleaning up temporary directory...");
-    if let Err(e) = tokio::fs::remove_dir_all(&iroh_data_dir).await {
+    if let Err(_e) = tokio::fs::remove_dir_all(&iroh_data_dir).await {
         // tracing::warn!("⚠️  Failed to clean up temporary directory {}: {}", iroh_data_dir.display(), e);
     } else {
         // tracing::info!("✅ Temporary directory cleaned up successfully");
@@ -307,14 +307,14 @@ async fn export(db: &Store, collection: Collection, output_dir: &Path, app_handl
             .stream()
             .await;
         
-        let mut file_size = 0u64;
+        let mut _file_size = 0u64;
         while let Some(item) = stream.next().await {
             match item {
                 ExportProgressItem::Size(size) => {
-                    file_size = size;
+                    _file_size = size;
                     // tracing::debug!("   File size: {} bytes", size);
                 }
-                ExportProgressItem::CopyProgress(offset) => {
+                ExportProgressItem::CopyProgress(_offset) => {
                     // tracing::debug!("   Export progress: {} / {} bytes", offset, file_size);
                 }
                 ExportProgressItem::Done => {
@@ -353,28 +353,28 @@ fn validate_path_component(component: &str) -> anyhow::Result<()> {
 
 fn show_get_error(e: GetError) -> GetError {
     match &e {
-        GetError::InitialNext { source, .. } => {
+        GetError::InitialNext { .. } => {
             // tracing::error!("initial connection error: {source}");
         }
-        GetError::ConnectedNext { source, .. } => {
+        GetError::ConnectedNext { .. } => {
             // tracing::error!("connected error: {source}");
         }
-        GetError::AtBlobHeaderNext { source, .. } => {
+        GetError::AtBlobHeaderNext { .. } => {
             // tracing::error!("reading blob header error: {source}");
         }
-        GetError::Decode { source, .. } => {
+        GetError::Decode { .. } => {
             // tracing::error!("decoding error: {source}");
         }
-        GetError::IrpcSend { source, .. } => {
+        GetError::IrpcSend { .. } => {
             // tracing::error!("error sending over irpc: {source}");
         }
-        GetError::AtClosingNext { source, .. } => {
+        GetError::AtClosingNext { .. } => {
             // tracing::error!("error at closing: {source}");
         }
         GetError::BadRequest { .. } => {
             // tracing::error!("bad request");
         }
-        GetError::LocalFailure { source, .. } => {
+        GetError::LocalFailure { .. } => {
             // tracing::error!("local failure {source:?}");
         }
     }

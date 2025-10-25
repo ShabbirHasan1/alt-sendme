@@ -40,7 +40,7 @@ impl ShareHandle {
             Ok(Ok(())) => {
                 // tracing::info!("✅ Router shutdown completed successfully");
             }
-            Ok(Err(e)) => {
+            Ok(Err(_e)) => {
                 // tracing::warn!("⚠️  Router shutdown returned error: {}", e);
             }
             Err(_) => {
@@ -55,7 +55,7 @@ impl ShareHandle {
                 Ok(_) => {
                     // tracing::info!("✅ Successfully cleaned up blobs directory: {}", blobs_dir.display());
                 }
-                Err(e) => {
+                Err(_e) => {
                     // tracing::warn!("⚠️  Failed to clean up blobs directory {}: {}", blobs_dir.display(), e);
                 }
             }

@@ -21,7 +21,7 @@ fn cleanup_orphaned_directories() {
                             Ok(_) => {
                                 // tracing::info!("✅ Successfully cleaned up orphaned directory: {}", name);
                             }
-                            Err(e) => {
+                            Err(_e) => {
                                 // tracing::warn!("⚠️  Failed to clean up orphaned directory {}: {}", name, e);
                             }
                         }
