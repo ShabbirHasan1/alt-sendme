@@ -99,7 +99,7 @@ export function useSender(): UseSenderReturn {
         setIsCompleted(false)
         setTransferStartTime(Date.now())
         setTransferProgress(null)
-        setImportProgress(null)
+        // Keep importProgress - don't reset it when transfer starts
       })
 
       unlistenProgress = await listen('transfer-progress', (event: any) => {

@@ -363,14 +363,18 @@ async fn show_provide_progress_with_logging(
     
     let mut tasks = FuturesUnordered::new();
     
+    // Global transfer state that accumulates across all files
     #[derive(Clone)]
-    struct TransferState {
+    struct GlobalTransferState {
         start_time: Instant,
         total_size: u64,
+        total_bytes_transferred: u64,
     }
     
-    let transfer_states: Arc<Mutex<std::collections::HashMap<(u64, u64), TransferState>>> = 
-        Arc::new(Mutex::new(std::collections::HashMap::new()));
+    let global_state: Arc<Mutex<Option<GlobalTransferState>>> = Arc::new(Mutex::new(None));
+    
+    // Track if we've already emitted the global transfer-started event
+    let transfer_started_emitted = Arc::new(Mutex::new(false));
     
     loop {
         tokio::select! {
@@ -388,6 +392,11 @@ async fn show_provide_progress_with_logging(
                     }
                     iroh_blobs::provider::events::ProviderMessage::ConnectionClosed(_msg) => {
                         // tracing::info!("❌ Connection closed: connection_id {}", msg.connection_id);
+                        // When connection closes, transfer is complete
+                        let started = transfer_started_emitted.lock().await;
+                        if *started {
+                            emit_event(&app_handle, "transfer-completed");
+                        }
                     }
                     iroh_blobs::provider::events::ProviderMessage::GetRequestReceivedNotify(msg) => {
                         let connection_id = msg.connection_id;
@@ -396,13 +405,15 @@ async fn show_provide_progress_with_logging(
                         //     connection_id, request_id);
                         
                         let app_handle_task = app_handle.clone();
-                        let transfer_states_task = transfer_states.clone();
+                        let global_state_task = global_state.clone();
+                        let transfer_started_emitted_task = transfer_started_emitted.clone();
                         
                         let mut rx = msg.rx;
                         tasks.push(async move {
                             // tracing::info!("🔄 Monitoring request: connection_id {}, request_id {}", connection_id, request_id);
                             
                             let mut transfer_started = false;
+                            let mut last_offset = 0u64;
                             
                             while let Ok(Some(update)) = rx.recv().await {
                                 match update {
@@ -410,14 +421,23 @@ async fn show_provide_progress_with_logging(
                                         // tracing::info!("▶️  Request started: conn {} req {} idx {} hash {} size {}", 
                                         //     connection_id, request_id, m.index, m.hash.fmt_short(), m.size);
                                         if !transfer_started {
-                                            transfer_states_task.lock().await.insert(
-                                                (connection_id, request_id),
-                                                TransferState {
+                                            // Initialize global state on first transfer start
+                                            let mut state = global_state_task.lock().await;
+                                            if state.is_none() {
+                                                *state = Some(GlobalTransferState {
                                                     start_time: Instant::now(),
                                                     total_size: total_file_size,
-                                                }
-                                            );
-                                            emit_event(&app_handle_task, "transfer-started");
+                                                    total_bytes_transferred: 0,
+                                                });
+                                            }
+                                            
+                                            // Only emit transfer-started once globally, not for each file
+                                            let mut started = transfer_started_emitted_task.lock().await;
+                                            if !*started {
+                                                emit_event(&app_handle_task, "transfer-started");
+                                                *started = true;
+                                            }
+                                            
                                             transfer_started = true;
                                         }
                                     }
@@ -425,21 +445,43 @@ async fn show_provide_progress_with_logging(
                                         // tracing::info!("📊 Progress: conn {} req {} offset {}", 
                                         //     connection_id, request_id, m.end_offset);
                                         if !transfer_started {
-                                            emit_event(&app_handle_task, "transfer-started");
+                                            // Initialize global state if not yet done
+                                            let mut state = global_state_task.lock().await;
+                                            if state.is_none() {
+                                                *state = Some(GlobalTransferState {
+                                                    start_time: Instant::now(),
+                                                    total_size: total_file_size,
+                                                    total_bytes_transferred: 0,
+                                                });
+                                            }
+                                            
+                                            // Only emit transfer-started once globally
+                                            let mut started = transfer_started_emitted_task.lock().await;
+                                            if !*started {
+                                                emit_event(&app_handle_task, "transfer-started");
+                                                *started = true;
+                                            }
                                             transfer_started = true;
                                         }
                                         
-                                        if let Some(state) = transfer_states_task.lock().await.get(&(connection_id, request_id)) {
+                                        // Update global state with the delta from this file's progress
+                                        let mut state_lock = global_state_task.lock().await;
+                                        if let Some(ref mut state) = *state_lock {
+                                            // Calculate how many bytes were transferred since last update for this file
+                                            let delta = m.end_offset.saturating_sub(last_offset);
+                                            state.total_bytes_transferred += delta;
+                                            last_offset = m.end_offset;
+                                            
                                             let elapsed = state.start_time.elapsed().as_secs_f64();
                                             let speed_bps = if elapsed > 0.0 {
-                                                m.end_offset as f64 / elapsed
+                                                state.total_bytes_transferred as f64 / elapsed
                                             } else {
                                                 0.0
                                             };
                                             
                                             emit_progress_event(
                                                 &app_handle_task,
-                                                m.end_offset,
+                                                state.total_bytes_transferred,
                                                 state.total_size,
                                                 speed_bps
                                             );
@@ -448,18 +490,13 @@ async fn show_provide_progress_with_logging(
                                     iroh_blobs::provider::events::RequestUpdate::Completed(_m) => {
                                         // tracing::info!("✅ Request completed: conn {} req {}", 
                                         //     connection_id, request_id);
-                                        if transfer_started {
-                                            transfer_states_task.lock().await.remove(&(connection_id, request_id));
-                                            emit_event(&app_handle_task, "transfer-completed");
-                                        }
+                                        // Note: Don't emit transfer-completed here for individual files
+                                        // Only emit it when all files are done (connection closed)
                                     }
                                     iroh_blobs::provider::events::RequestUpdate::Aborted(_m) => {
                                         // tracing::warn!("⚠️  Request aborted: conn {} req {}", 
                                         //     connection_id, request_id);
-                                        if transfer_started {
-                                            transfer_states_task.lock().await.remove(&(connection_id, request_id));
-                                            emit_event(&app_handle_task, "transfer-completed");
-                                        }
+                                        // Note: Don't emit transfer-completed here for individual files
                                     }
                                 }
                             }
