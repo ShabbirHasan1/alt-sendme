@@ -23,12 +23,6 @@ function App() {
       
       <div className="container mx-auto p-8">
         <div className="max-w-2xl mx-auto">
-          <h1
-            className="text-3xl font-bold font-mono text-center mb-8 select-none [@media(min-height:680px)]:block hidden" 
-            style={{ color: 'var(--app-bg-fg)' }}
-          >
-            ALT-SENDME
-          </h1>
           
           <div 
       
