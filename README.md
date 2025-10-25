@@ -1,4 +1,6 @@
-# Alt - Sendme
+# Alt-Sendme - file tranfer tool
+
+![Alt-Sendme Demo](assets/animation.gif)
 
 A cross-platform desktop application using [iroh](https://crates.io/crates/iroh) with
 the [iroh-blobs](https://crates.io/crates/iroh-blobs) protocol to send files and

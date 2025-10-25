@@ -11,6 +11,10 @@ node_modules/
 dist/
 build/
 
+# TypeScript build cache files
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
 # Temporary files
 tmp/
 tmp2/
