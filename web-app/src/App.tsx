@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Sender } from './components/sender/Sender'
 import { Receiver } from './components/receiver/Receiver'
+import { TitleBar } from './components/TitleBar'
 
 function App() {
   const [activeTab, setActiveTab] = useState<'send' | 'receive'>('send')
@@ -15,13 +16,19 @@ function App() {
   }, [])
 
   return (
-    <div className="min-h-screen relative glass-background" style={{ color: 'var(--app-bg-fg)' }}>
-      <div 
-        className="absolute w-full h-10 z-10" 
-        data-tauri-drag-region 
-      />
+    <div className="h-screen flex flex-col relative glass-background select-none" style={{ color: 'var(--app-bg-fg)' }}>
+      {/* Custom title bar for Linux only */}
+      {IS_LINUX && <TitleBar title="ALT-SENDME" />}
       
-      <div className="container mx-auto p-8">
+      {/* Drag region for macOS (for traffic lights area) */}
+      {IS_MACOS && (
+        <div 
+          className="absolute w-full h-10 z-10" 
+          data-tauri-drag-region 
+        />
+      )}
+      
+      <div className="container mx-auto p-8 flex-1 overflow-auto">
         <div className="max-w-2xl mx-auto">
           
           <div 
@@ -109,7 +116,7 @@ function App() {
           </div>
         </div>
       </div>
-      <div className="absolute bottom-0  w-full h-10 -z-10 text-center text-xs"><span>v0.1.0</span></div>
+      <div className="w-full h-10 text-center text-xs flex items-center justify-center"><span>v0.1.0</span></div>
     </div>
   )
 }

@@ -87,6 +87,8 @@
     @apply h-10 flex items-center shrink-0;
     @apply border-b border-white/5;
     @apply px-4;
+    background-color: var(--app-bg);
+    color: var(--app-bg-fg);
   }
   
   .title-bar-macos {
@@ -96,6 +98,29 @@
   .drag-region {
     @apply absolute w-full h-10 z-10;
     background: transparent;
+  }
+  
+  /* Custom title bar styling */
+  .custom-title-bar {
+    @apply h-10 flex items-center justify-between shrink-0 px-4 select-none border-b border-white/5;
+    background-color: var(--app-bg);
+    color: var(--app-bg-fg);
+  }
+  
+  .window-controls {
+    @apply flex items-center gap-2;
+  }
+  
+  .window-control-btn {
+    @apply w-8 h-8 flex items-center justify-center rounded-md transition-colors duration-200;
+  }
+  
+  .window-control-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .window-control-btn.close:hover {
+    background-color: rgba(239, 68, 68, 0.8);
   }
   
   /* Glass effects with fallback for platforms without blur support */

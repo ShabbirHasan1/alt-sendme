@@ -61,8 +61,17 @@ fn main() {
             get_transport_status,
             get_file_size,
         ])
-        .setup(|_app| {
+        .setup(|app| {
             cleanup_orphaned_directories();
+            
+            // Disable window decorations only on Linux
+            #[cfg(target_os = "linux")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(false);
+                }
+            }
+            
             Ok(())
         })
         .run(tauri::generate_context!())

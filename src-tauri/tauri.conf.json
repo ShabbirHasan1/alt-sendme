@@ -19,6 +19,7 @@
         "height": 600,
         "resizable": true,
         "fullscreen": false,
+        "maximizable": false,
         "center": true,
         "hiddenTitle": true,
         "transparent": true,
