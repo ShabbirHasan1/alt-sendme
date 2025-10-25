@@ -1,7 +1,5 @@
 # Alt - Sendme
 
-> **Note**: This is a fork of [sendme](https://github.com/n0-computer/sendme) that has been substantially modified into a Tauri desktop application with a modern web-based UI.
-
 A cross-platform desktop application using [iroh](https://crates.io/crates/iroh) with
 the [iroh-blobs](https://crates.io/crates/iroh-blobs) protocol to send files and
 directories over the internet.
@@ -72,7 +70,7 @@ This will start the app with hot reload enabled for both frontend and backend ch
 1. Click on the "Receive Files" tab
 2. Paste the ticket you received from someone
 3. Click "Receive File"
-4. Files will be saved to your Downloads folder
+4. Files will be saved to folder of your choice
 
 All connections are encrypted and verified using blake3 hashing. The application handles NAT traversal automatically and will use relay servers as a fallback when direct connections aren't possible.
 
@@ -100,9 +98,10 @@ The desktop version uses the same core networking library as the CLI version, so
 
 ## License
 
-This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+Alt-sendme — Real-time file transfer tool
+Copyright (C) 2025  Tony Antony
 
-For details about the original sendme project, see the NOTICE file in the root directory.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 
 You can redistribute and/or modify this program under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
