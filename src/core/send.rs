@@ -377,7 +377,12 @@ async fn show_provide_progress_with_logging(
     struct TransferState {
         start_time: Instant,
         total_size: u64,
+        last_offset: u64, // Track the last reported offset for this request
     }
+    
+    // Global cumulative tracking across all requests
+    let cumulative_bytes: Arc<Mutex<u64>> = Arc::new(Mutex::new(0));
+    let transfer_start_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     
     let transfer_states: Arc<Mutex<std::collections::HashMap<(u64, u64), TransferState>>> = 
         Arc::new(Mutex::new(std::collections::HashMap::new()));
@@ -408,6 +413,8 @@ async fn show_provide_progress_with_logging(
                         // Clone app_handle and state for the task
                         let app_handle_task = app_handle.clone();
                         let transfer_states_task = transfer_states.clone();
+                        let cumulative_bytes_task = cumulative_bytes.clone();
+                        let transfer_start_time_task = transfer_start_time.clone();
                         
                         // Spawn a task to monitor this request
                         let mut rx = msg.rx;
@@ -428,9 +435,17 @@ async fn show_provide_progress_with_logging(
                                                 TransferState {
                                                     start_time: Instant::now(),
                                                     total_size: total_file_size,
+                                                    last_offset: 0,
                                                 }
                                             );
-                                            emit_event(&app_handle_task, "transfer-started");
+                                            
+                                            // Set global transfer start time if not already set
+                                            let mut start_time = transfer_start_time_task.lock().await;
+                                            if start_time.is_none() {
+                                                *start_time = Some(Instant::now());
+                                                emit_event(&app_handle_task, "transfer-started");
+                                            }
+                                            
                                             transfer_started = true;
                                         }
                                     }
@@ -442,39 +457,77 @@ async fn show_provide_progress_with_logging(
                                             transfer_started = true;
                                         }
                                         
-                                        // Emit progress event with speed calculation
-                                        if let Some(state) = transfer_states_task.lock().await.get(&(connection_id, request_id)) {
-                                            let elapsed = state.start_time.elapsed().as_secs_f64();
-                                            let speed_bps = if elapsed > 0.0 {
-                                                m.end_offset as f64 / elapsed
-                                            } else {
-                                                0.0
-                                            };
+                                        // Update cumulative progress across all requests
+                                        if let Some(state) = transfer_states_task.lock().await.get_mut(&(connection_id, request_id)) {
+                                            // Calculate bytes transferred since last update for this request
+                                            let bytes_added = m.end_offset.saturating_sub(state.last_offset);
+                                            state.last_offset = m.end_offset;
                                             
-                                            emit_progress_event(
-                                                &app_handle_task,
-                                                m.end_offset,
-                                                state.total_size,
-                                                speed_bps
-                                            );
+                                            // Add to cumulative total
+                                            let mut cumulative = cumulative_bytes_task.lock().await;
+                                            *cumulative += bytes_added;
+                                            let current_cumulative = *cumulative;
+                                            
+                                            // Calculate overall speed and emit progress
+                                            let start_time = transfer_start_time_task.lock().await;
+                                            if let Some(start) = *start_time {
+                                                let elapsed = start.elapsed().as_secs_f64();
+                                                let speed_bps = if elapsed > 0.0 {
+                                                    current_cumulative as f64 / elapsed
+                                                } else {
+                                                    0.0
+                                                };
+                                                
+                                                tracing::info!("📊 Cumulative progress: {} / {} bytes", current_cumulative, total_file_size);
+                                                emit_progress_event(
+                                                    &app_handle_task,
+                                                    current_cumulative,
+                                                    total_file_size,
+                                                    speed_bps
+                                                );
+                                            }
                                         }
                                     }
                                     iroh_blobs::provider::events::RequestUpdate::Completed(_m) => {
                                         tracing::info!("✅ Request completed: conn {} req {}", 
                                             connection_id, request_id);
                                         if transfer_started {
-                                            // Clean up state
-                                            transfer_states_task.lock().await.remove(&(connection_id, request_id));
-                                            emit_event(&app_handle_task, "transfer-completed");
+                                            // Clean up state and check if all are complete
+                                            let (had_state, remaining_count, cumulative_bytes) = {
+                                                let mut states = transfer_states_task.lock().await;
+                                                let had_state = states.remove(&(connection_id, request_id)).is_some();
+                                                let remaining_count = states.len();
+                                                (had_state, remaining_count, *cumulative_bytes_task.lock().await)
+                                            };
+                                            
+                                            if remaining_count == 0 && had_state {
+                                                // All requests are done, emit transfer-completed
+                                                tracing::info!("🎉 All files transferred! Cumulative bytes: {}", cumulative_bytes);
+                                                emit_event(&app_handle_task, "transfer-completed");
+                                            } else {
+                                                tracing::info!("📊 Partial completion: {} requests remaining", remaining_count);
+                                            }
                                         }
                                     }
                                     iroh_blobs::provider::events::RequestUpdate::Aborted(_m) => {
                                         tracing::warn!("⚠️  Request aborted: conn {} req {}", 
                                             connection_id, request_id);
                                         if transfer_started {
-                                            // Clean up state
-                                            transfer_states_task.lock().await.remove(&(connection_id, request_id));
-                                            emit_event(&app_handle_task, "transfer-completed");
+                                            // Clean up state and check if all are complete
+                                            let (had_state, remaining_count, cumulative_bytes) = {
+                                                let mut states = transfer_states_task.lock().await;
+                                                let had_state = states.remove(&(connection_id, request_id)).is_some();
+                                                let remaining_count = states.len();
+                                                (had_state, remaining_count, *cumulative_bytes_task.lock().await)
+                                            };
+                                            
+                                            if remaining_count == 0 && had_state {
+                                                // All requests are done, emit transfer-completed
+                                                tracing::info!("🎉 All files transferred after abort! Cumulative bytes: {}", cumulative_bytes);
+                                                emit_event(&app_handle_task, "transfer-completed");
+                                            } else {
+                                                tracing::info!("📊 Partial completion after abort: {} requests remaining", remaining_count);
+                                            }
                                         }
                                     }
                                 }
