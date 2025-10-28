@@ -140,7 +140,7 @@ export function ReceivingActiveCard({
       )}
         
       {/* Show progress bar when transporting */}
-      {isTransporting && !isExporting && transferProgress && (
+      {isTransporting && transferProgress && (
         <TransferProgressBar progress={transferProgress} />
       )}
        
