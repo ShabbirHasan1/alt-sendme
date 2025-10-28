@@ -173,27 +173,22 @@ pub async fn download(ticket_str: String, options: ReceiveOptions, app_handle: A
             let get = db.remote().execute_get(connection, local.missing());
             let mut stats = Stats::default();
             let mut stream = get.stream();
-            let mut last_log_offset = 0u64;
             let transfer_start_time = Instant::now();
             
             while let Some(item) = stream.next().await {
                 match item {
                     GetProgressItem::Progress(offset) => {
-                        // Emit progress events every 1MB
-                        if offset - last_log_offset > 1_000_000 {
-                            tracing::info!("📥 Downloaded: {} bytes", offset);
-                            last_log_offset = offset;
-                            
-                            // Calculate speed and emit progress event
-                            let elapsed = transfer_start_time.elapsed().as_secs_f64();
-                            let speed_bps = if elapsed > 0.0 {
-                                offset as f64 / elapsed
-                            } else {
-                                0.0
-                            };
-                            
-                            emit_progress_event(&app_handle, offset, payload_size, speed_bps);
-                        }
+                        tracing::info!("📥 Downloaded: {} bytes", offset);
+                        
+                        // Calculate speed and emit progress event
+                        let elapsed = transfer_start_time.elapsed().as_secs_f64();
+                        let speed_bps = if elapsed > 0.0 {
+                            offset as f64 / elapsed
+                        } else {
+                            0.0
+                        };
+                        
+                        emit_progress_event(&app_handle, offset, payload_size, speed_bps);
                     }
                     GetProgressItem::Done(value) => {
                         tracing::info!("✅ Download complete!");
