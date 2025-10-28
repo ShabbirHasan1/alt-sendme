@@ -378,11 +378,13 @@ async fn show_provide_progress_with_logging(
         start_time: Instant,
         total_size: u64,
         last_offset: u64, // Track the last reported offset for this request
+        index: u64, // Track the blob index to filter out metadata blobs
     }
     
     // Global cumulative tracking across all requests
     let cumulative_bytes: Arc<Mutex<u64>> = Arc::new(Mutex::new(0));
     let transfer_start_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+    let active_file_requests: Arc<Mutex<u64>> = Arc::new(Mutex::new(0)); // Count of active file (not metadata) requests
     
     let transfer_states: Arc<Mutex<std::collections::HashMap<(u64, u64), TransferState>>> = 
         Arc::new(Mutex::new(std::collections::HashMap::new()));
@@ -415,6 +417,7 @@ async fn show_provide_progress_with_logging(
                         let transfer_states_task = transfer_states.clone();
                         let cumulative_bytes_task = cumulative_bytes.clone();
                         let transfer_start_time_task = transfer_start_time.clone();
+                        let active_file_requests_task = active_file_requests.clone();
                         
                         // Spawn a task to monitor this request
                         let mut rx = msg.rx;
@@ -429,15 +432,31 @@ async fn show_provide_progress_with_logging(
                                         tracing::info!("▶️  Request started: conn {} req {} idx {} hash {} size {}", 
                                             connection_id, request_id, m.index, m.hash.fmt_short(), m.size);
                                         if !transfer_started {
-                                            // Store transfer state with the total file size, not individual blob size
+                                            // Determine if this is a file blob (index >= 2) or metadata blob (index < 2)
+                                            // Index 0: collection root hash
+                                            // Index 1: hash sequence blob
+                                            // Index 2+: actual file data
+                                            let is_file_request = m.index >= 2;
+                                            
+                                            // Store transfer state
                                             transfer_states_task.lock().await.insert(
                                                 (connection_id, request_id),
                                                 TransferState {
                                                     start_time: Instant::now(),
                                                     total_size: total_file_size,
                                                     last_offset: 0,
+                                                    index: m.index,
                                                 }
                                             );
+                                            
+                                            if is_file_request {
+                                                // Increment active file request counter
+                                                let mut active = active_file_requests_task.lock().await;
+                                                *active += 1;
+                                                tracing::info!("📁 File request started. Active file requests: {}", *active);
+                                            } else {
+                                                tracing::info!("📋 Metadata request started (index {}). Skipping progress tracking.", m.index);
+                                            }
                                             
                                             // Set global transfer start time if not already set
                                             let mut start_time = transfer_start_time_task.lock().await;
@@ -457,34 +476,42 @@ async fn show_provide_progress_with_logging(
                                             transfer_started = true;
                                         }
                                         
-                                        // Update cumulative progress across all requests
+                                        // Update cumulative progress ONLY for file requests (index >= 2), not metadata
                                         if let Some(state) = transfer_states_task.lock().await.get_mut(&(connection_id, request_id)) {
-                                            // Calculate bytes transferred since last update for this request
-                                            let bytes_added = m.end_offset.saturating_sub(state.last_offset);
-                                            state.last_offset = m.end_offset;
-                                            
-                                            // Add to cumulative total
-                                            let mut cumulative = cumulative_bytes_task.lock().await;
-                                            *cumulative += bytes_added;
-                                            let current_cumulative = *cumulative;
-                                            
-                                            // Calculate overall speed and emit progress
-                                            let start_time = transfer_start_time_task.lock().await;
-                                            if let Some(start) = *start_time {
-                                                let elapsed = start.elapsed().as_secs_f64();
-                                                let speed_bps = if elapsed > 0.0 {
-                                                    current_cumulative as f64 / elapsed
-                                                } else {
-                                                    0.0
-                                                };
+                                            // Only count progress for actual file blobs (index >= 2)
+                                            if state.index >= 2 {
+                                                // Calculate bytes transferred since last update for this request
+                                                let bytes_added = m.end_offset.saturating_sub(state.last_offset);
+                                                state.last_offset = m.end_offset;
                                                 
-                                                tracing::info!("📊 Cumulative progress: {} / {} bytes", current_cumulative, total_file_size);
-                                                emit_progress_event(
-                                                    &app_handle_task,
-                                                    current_cumulative,
-                                                    total_file_size,
-                                                    speed_bps
-                                                );
+                                                // Add to cumulative total
+                                                let mut cumulative = cumulative_bytes_task.lock().await;
+                                                *cumulative += bytes_added;
+                                                let current_cumulative = *cumulative;
+                                                
+                                                // Calculate overall speed and emit progress
+                                                let start_time = transfer_start_time_task.lock().await;
+                                                if let Some(start) = *start_time {
+                                                    let elapsed = start.elapsed().as_secs_f64();
+                                                    let speed_bps = if elapsed > 0.0 {
+                                                        current_cumulative as f64 / elapsed
+                                                    } else {
+                                                        0.0
+                                                    };
+                                                    
+                                                    tracing::info!("📊 Cumulative progress: {} / {} bytes ({:.1}%)", 
+                                                        current_cumulative, total_file_size,
+                                                        (current_cumulative as f64 / total_file_size as f64) * 100.0);
+                                                    emit_progress_event(
+                                                        &app_handle_task,
+                                                        current_cumulative,
+                                                        total_file_size,
+                                                        speed_bps
+                                                    );
+                                                }
+                                            } else {
+                                                tracing::info!("📋 Metadata progress (index {}). Bytes: {}. Not counted in cumulative.", 
+                                                    state.index, m.end_offset);
                                             }
                                         }
                                     }
@@ -492,20 +519,34 @@ async fn show_provide_progress_with_logging(
                                         tracing::info!("✅ Request completed: conn {} req {}", 
                                             connection_id, request_id);
                                         if transfer_started {
-                                            // Clean up state and check if all are complete
-                                            let (had_state, remaining_count, cumulative_bytes) = {
+                                            // Clean up state and check if all FILE requests are complete
+                                            let (had_state, is_file_request, active_file_count, cumulative_bytes) = {
                                                 let mut states = transfer_states_task.lock().await;
-                                                let had_state = states.remove(&(connection_id, request_id)).is_some();
-                                                let remaining_count = states.len();
-                                                (had_state, remaining_count, *cumulative_bytes_task.lock().await)
+                                                let state = states.remove(&(connection_id, request_id));
+                                                let is_file_request = state.as_ref().map(|s| s.index >= 2).unwrap_or(false);
+                                                let had_state = state.is_some();
+                                                
+                                                // Decrement active file request counter if this was a file request
+                                                let mut active = active_file_requests_task.lock().await;
+                                                if is_file_request {
+                                                    *active = active.saturating_sub(1);
+                                                }
+                                                let active_file_count = *active;
+                                                
+                                                let cumulative_bytes = *cumulative_bytes_task.lock().await;
+                                                (had_state, is_file_request, active_file_count, cumulative_bytes)
                                             };
                                             
-                                            if remaining_count == 0 && had_state {
-                                                // All requests are done, emit transfer-completed
-                                                tracing::info!("🎉 All files transferred! Cumulative bytes: {}", cumulative_bytes);
-                                                emit_event(&app_handle_task, "transfer-completed");
+                                            if is_file_request {
+                                                tracing::info!("📁 File request completed. Remaining active file requests: {}", active_file_count);
                                             } else {
-                                                tracing::info!("📊 Partial completion: {} requests remaining", remaining_count);
+                                                tracing::info!("📋 Metadata request completed.");
+                                            }
+                                            
+                                            // Only emit transfer-completed when all FILE requests are done
+                                            if active_file_count == 0 && had_state && is_file_request {
+                                                tracing::info!("🎉 All file transfers completed! Total bytes: {}", cumulative_bytes);
+                                                emit_event(&app_handle_task, "transfer-completed");
                                             }
                                         }
                                     }
@@ -513,20 +554,34 @@ async fn show_provide_progress_with_logging(
                                         tracing::warn!("⚠️  Request aborted: conn {} req {}", 
                                             connection_id, request_id);
                                         if transfer_started {
-                                            // Clean up state and check if all are complete
-                                            let (had_state, remaining_count, cumulative_bytes) = {
+                                            // Clean up state and check if all FILE requests are complete
+                                            let (had_state, is_file_request, active_file_count, cumulative_bytes) = {
                                                 let mut states = transfer_states_task.lock().await;
-                                                let had_state = states.remove(&(connection_id, request_id)).is_some();
-                                                let remaining_count = states.len();
-                                                (had_state, remaining_count, *cumulative_bytes_task.lock().await)
+                                                let state = states.remove(&(connection_id, request_id));
+                                                let is_file_request = state.as_ref().map(|s| s.index >= 2).unwrap_or(false);
+                                                let had_state = state.is_some();
+                                                
+                                                // Decrement active file request counter if this was a file request
+                                                let mut active = active_file_requests_task.lock().await;
+                                                if is_file_request {
+                                                    *active = active.saturating_sub(1);
+                                                }
+                                                let active_file_count = *active;
+                                                
+                                                let cumulative_bytes = *cumulative_bytes_task.lock().await;
+                                                (had_state, is_file_request, active_file_count, cumulative_bytes)
                                             };
                                             
-                                            if remaining_count == 0 && had_state {
-                                                // All requests are done, emit transfer-completed
-                                                tracing::info!("🎉 All files transferred after abort! Cumulative bytes: {}", cumulative_bytes);
-                                                emit_event(&app_handle_task, "transfer-completed");
+                                            if is_file_request {
+                                                tracing::info!("📁 File request aborted. Remaining active file requests: {}", active_file_count);
                                             } else {
-                                                tracing::info!("📊 Partial completion after abort: {} requests remaining", remaining_count);
+                                                tracing::info!("📋 Metadata request aborted.");
+                                            }
+                                            
+                                            // Only emit transfer-completed when all FILE requests are done
+                                            if active_file_count == 0 && had_state && is_file_request {
+                                                tracing::info!("🎉 All file transfers completed after abort! Total bytes: {}", cumulative_bytes);
+                                                emit_event(&app_handle_task, "transfer-completed");
                                             }
                                         }
                                     }
