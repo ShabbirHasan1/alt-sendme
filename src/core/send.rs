@@ -452,6 +452,16 @@ async fn show_provide_progress_with_logging(
                                             if is_file_request {
                                                 // Increment active file request counter
                                                 let mut active = active_file_requests_task.lock().await;
+                                                
+                                                // Reset cumulative bytes when first file request of new connection starts
+                                                if *active == 0 {
+                                                    let mut cumulative = cumulative_bytes_task.lock().await;
+                                                    *cumulative = 0;
+                                                    let mut start_time = transfer_start_time_task.lock().await;
+                                                    *start_time = None; // Will be set below
+                                                    tracing::info!("🔄 Resetting cumulative progress for new transfer");
+                                                }
+                                                
                                                 *active += 1;
                                                 tracing::info!("📁 File request started. Active file requests: {}", *active);
                                             } else {
@@ -543,10 +553,19 @@ async fn show_provide_progress_with_logging(
                                                 tracing::info!("📋 Metadata request completed.");
                                             }
                                             
-                                            // Only emit transfer-completed when all FILE requests are done
-                                            if active_file_count == 0 && had_state && is_file_request {
-                                                tracing::info!("🎉 All file transfers completed! Total bytes: {}", cumulative_bytes);
-                                                emit_event(&app_handle_task, "transfer-completed");
+                                            // Emit transfer-completed when all FILE requests are done
+                                            // (regardless of whether the current completing request is a file or metadata)
+                                            if active_file_count == 0 && had_state {
+                                                // Check if this completion reduced the count to 0 (was a file request)
+                                                // OR if count was already 0 (metadata completed after files)
+                                                if is_file_request {
+                                                    tracing::info!("🎉 All file transfers completed! Total bytes: {}", cumulative_bytes);
+                                                    emit_event(&app_handle_task, "transfer-completed");
+                                                } else {
+                                                    // Metadata completing, check if files were already done
+                                                    tracing::info!("📋 Metadata completed, files already done. Emitting completion.");
+                                                    emit_event(&app_handle_task, "transfer-completed");
+                                                }
                                             }
                                         }
                                     }
@@ -578,10 +597,19 @@ async fn show_provide_progress_with_logging(
                                                 tracing::info!("📋 Metadata request aborted.");
                                             }
                                             
-                                            // Only emit transfer-completed when all FILE requests are done
-                                            if active_file_count == 0 && had_state && is_file_request {
-                                                tracing::info!("🎉 All file transfers completed after abort! Total bytes: {}", cumulative_bytes);
-                                                emit_event(&app_handle_task, "transfer-completed");
+                                            // Emit transfer-completed when all FILE requests are done
+                                            // (regardless of whether the current completing request is a file or metadata)
+                                            if active_file_count == 0 && had_state {
+                                                // Check if this abort reduced the count to 0 (was a file request)
+                                                // OR if count was already 0 (metadata aborted after files)
+                                                if is_file_request {
+                                                    tracing::info!("🎉 All file transfers completed after abort! Total bytes: {}", cumulative_bytes);
+                                                    emit_event(&app_handle_task, "transfer-completed");
+                                                } else {
+                                                    // Metadata aborted, check if files were already done
+                                                    tracing::info!("📋 Metadata aborted, files already done. Emitting completion.");
+                                                    emit_event(&app_handle_task, "transfer-completed");
+                                                }
                                             }
                                         }
                                     }
