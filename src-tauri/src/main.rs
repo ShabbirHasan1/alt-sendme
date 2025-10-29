@@ -8,7 +8,34 @@ use commands::{start_sharing, stop_sharing, receive_file, get_sharing_status, ch
 use state::AppState;
 use std::sync::Arc;
 
+#[cfg(windows)]
+fn allocate_console_on_windows() {
+    // Allocate a console on Windows so logs are visible even in release builds
+    // This is necessary because windows_subsystem = "windows" prevents a console from appearing
+    unsafe {
+        use windows_sys::Win32::System::Console::{AllocConsole, GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
+        
+        // Allocate a new console if one doesn't exist
+        // If a console already exists, this will fail but that's okay
+        if AllocConsole() != 0 {
+            // After allocating console, stdout/stderr are automatically redirected
+            // Get the handles to ensure they're set up (though not strictly necessary)
+            let _stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+            let _stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+            // Tracing will now output to this console
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn allocate_console_on_windows() {
+    // No-op on non-Windows platforms
+}
+
 fn main() {
+    // On Windows release builds, allocate a console so logs are visible
+    allocate_console_on_windows();
+    
     // Initialize tracing for better debugging
     tracing_subscriber::fmt()
         .with_env_filter(
