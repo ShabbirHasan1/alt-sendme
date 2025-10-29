@@ -457,22 +457,21 @@ async fn show_provide_progress_with_logging(
                                                 if *active == 0 {
                                                     let mut cumulative = cumulative_bytes_task.lock().await;
                                                     *cumulative = 0;
+                                                    
+                                                    // Reset transfer start time for new connection
                                                     let mut start_time = transfer_start_time_task.lock().await;
-                                                    *start_time = None; // Will be set below
+                                                    *start_time = Some(Instant::now());
+                                                    
                                                     tracing::info!("🔄 Resetting cumulative progress for new transfer");
+                                                    
+                                                    // Emit transfer-started for the first file request
+                                                    emit_event(&app_handle_task, "transfer-started");
                                                 }
                                                 
                                                 *active += 1;
                                                 tracing::info!("📁 File request started. Active file requests: {}", *active);
                                             } else {
                                                 tracing::info!("📋 Metadata request started (index {}). Skipping progress tracking.", m.index);
-                                            }
-                                            
-                                            // Set global transfer start time if not already set
-                                            let mut start_time = transfer_start_time_task.lock().await;
-                                            if start_time.is_none() {
-                                                *start_time = Some(Instant::now());
-                                                emit_event(&app_handle_task, "transfer-started");
                                             }
                                             
                                             transfer_started = true;
